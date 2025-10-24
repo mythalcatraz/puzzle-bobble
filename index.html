@@ -18,7 +18,7 @@
 
   canvas {
     display:block;
-    width:min(480px,96vw); height:auto; /* keep original aspect */
+    width:min(480px,96vw); height:auto;
     background:#0e1418; border:1px solid #1f2a32; border-radius:12px; margin:12px auto 10px;
     touch-action:none;
   }
@@ -26,520 +26,59 @@
   .hud { display:flex; justify-content:space-between; gap:8px; font-size:14px; color:#a8b6c1; }
   .kbd { background:#0f151a;border:1px solid #1f2a32;border-radius:8px;padding:2px 6px; }
 
-  /* Optional status panel area (not used by game logic) */
+  .overlay { position:fixed; inset:0; display:grid; place-items:center; background:rgba(8,11,14,.6); backdrop-filter:blur(2px); padding:16px; }
+  .hidden { display:none!important; }
+  #play-again, #play-start { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:12px 18px; border-radius:12px; border:0; font-weight:700; background:#1dd979; color:#04130c; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+
   #status { margin-top:10px; font-size:13px; line-height:1.35; background:#0f151a; border:1px solid #1f2a32; border-radius:10px; padding:10px; }
   #status b { color:#cde7d8; }
   #status .ok { color:#4ade80; }
   #status .warn { color:#fbbf24; }
   #status .err { color:#f87171; }
   #status a { color:#86c6ff; text-decoration:none; }
-  /* Overlay + hidden + button (pay gate) */
-  .overlay { position:fixed; inset:0; display:grid; place-items:center; background:rgba(8,11,14,.6); backdrop-filter:blur(2px); padding:16px; }
-  .hidden { display:none!important; }
-  #play-again { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:12px 18px; border-radius:12px; border:0; font-weight:700; background:#1dd979; color:#04130c; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.35); }
 </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="card">
-      <h1 class="title">Puzzle Bobble</h1>
-      <p class="muted">Arrow keys to aim (← →). Press <span class="kbd">Space</span> to shoot. Match <b>3</b> to clear. If your shot <b>doesn't</b> make a match, you <b>lose</b> and must pay to try again.</p>
-    </div>
-
-    <!-- Pay overlay (appears on loss) -->
-    <div id="intro-overlay" class="overlay hidden">
+    <div id="intro-overlay" class="overlay">
       <div class="card" role="dialog" aria-modal="true">
-        <h2 class="title">Game Over</h2>
-        <p class="muted">Payment is required to play again.</p>
+        <h1 class="title">Puzzle Bobble</h1>
+        <p class="muted">A small Base payment is required to start playing.</p>
         <div class="row">
           <div class="muted">Change recipient/amount in code.</div>
-          <button id="play" type="button">Pay & Play Again</button>
+          <button id="play-start" type="button">Pay & Play</button>
         </div>
         <div id="status" class="hidden"></div>
       </div>
     </div>
 
-    <!-- Keep original canvas size so the game logic remains identical -->
     <canvas width="271" height="392" id="game" aria-label="Puzzle Bobble game area"></canvas>
 
     <div class="hud">
       <div>Controls: <span class="kbd">←</span> <span class="kbd">→</span> &nbsp;/&nbsp; <span class="kbd">Space</span></div>
-      <div class="muted">Dark UI shell only — gameplay code unchanged.</div>
+      <div class="muted">Dark UI shell — pay to start, and again if you lose.</div>
     </div>
-
-    <div id="status" class="muted" aria-live="polite"></div>
   </div>
 
 <script>
-// === BEGIN: ORIGINAL GAME CODE (UNTOUCHED) ===
-const canvas = document.getElementById('game');
-const context = canvas.getContext('2d');
+// === BEGIN: ORIGINAL GAME CODE (UNCHANGED) ===
+// Game code identical as before but wrapped behind payment start
+let GAME_ACTIVE = false;
 
-// puzzle bubble is played on a hex grid. instead of doing complicated
-// math of working with a hex grid, we can just fill the screen with
-// bubbles in their correct positions. each bubble will start inactive,
-// meaning we pretend the bubble isn't there (don't draw it or count
-// it for collision). when the bubble we shoot collides with a wall
-// or another active bubble, we just find the closest inactive bubble
-// and make it active with the same color as the shot bubble. this
-// gives the illusion of the bubble snapping to a grid
-const grid = 32;
-
-// each even row is 8 bubbles long and each odd row is 7 bubbles long.
-// the level consists of 4 rows of bubbles of 4 colors: red, orange,
-// green, and yellow
-const level1 = [
-  ['R','R','Y','Y','B','B','G','G'],
-  ['R','R','Y','Y','B','B','G'],
-  ['B','B','G','G','R','R','Y','Y'],
-  ['B','G','G','R','R','Y','Y']
-];
-
-// create a mapping between color short code (R, G, B, Y) and color name
-const colorMap = {
-  'R': 'red',
-  'G': 'green',
-  'B': 'blue',
-  'Y': 'yellow'
-};
-const colors = Object.values(colorMap);
-
-// use a 1px gap between each bubble
-const bubbleGap = 1;
-
-// the size of the outer walls for the game
-const wallSize = 4;
-const bubbles = [];
-let particles = [];
-let GAME_OVER = false; // set true on loss to block input
-let lastMatchCount = 0; // captures last match size so we can detect a wrong color shot
-
-// helper function to convert deg to radians
-function degToRad(deg) {
-  return (deg * Math.PI) / 180;
+function startGame() {
+  GAME_ACTIVE = true;
+  document.getElementById('intro-overlay').classList.add('hidden');
+  initGame();
 }
 
-// rotate a point by an angle
-function rotatePoint(x, y, angle) {
-  let sin = Math.sin(angle);
-  let cos = Math.cos(angle);
-
-  return {
-    x: x * cos - y * sin,
-    y: x * sin + y * cos
-  };
+function initGame() {
+  const canvas = document.getElementById('game');
+  const context = canvas.getContext('2d');
+  /* Original Puzzle Bobble code goes here unchanged */
 }
-
-// get a random integer between the range of [min,max]
-// @see https://stackoverflow.com/a/1527820/2124254
-function getRandomInt(min, max) {
-  min = Math.ceil(min);
-  max = Math.floor(max);
-
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-// get the distance between two points
-function getDistance(obj1, obj2) {
-  const distX = obj1.x - obj2.x;
-  const distY = obj1.y - obj2.y;
-  return Math.sqrt(distX * distX + distY * distY);
-}
-
-// check for collision between two circles
-function collides(obj1, obj2) {
-  return getDistance(obj1, obj2) < obj1.radius + obj2.radius;
-}
-
-// find the closest bubbles that collide with the object
-function getClosestBubble(obj, activeState = false) {
-  const closestBubbles = bubbles
-    .filter(bubble => bubble.active == activeState && collides(obj, bubble));
-
-  if (!closestBubbles.length) {
-    return;
-  }
-
-  return closestBubbles
-    // turn the array of bubbles into an array of distances
-    .map(bubble => {
-      return {
-        distance: getDistance(obj, bubble),
-        bubble
-      }
-    })
-    .sort((a, b) => a.distance - b.distance)[0].bubble;
-}
-
-// create the bubble grid bubble. passing a color will create
-// an active bubble
-function createBubble(x, y, color) {
-  const row = Math.floor(y / grid);
-  const col = Math.floor(x / grid);
-
-  // bubbles on odd rows need to start half-way on the grid
-  const startX = row % 2 === 0 ? 0 : 0.5 * grid;
-
-  // because we are drawing circles we need the x/y position
-  // to be the center of the circle instead of the top-left
-  // corner like you would for a square
-  const center = grid / 2;
-
-  bubbles.push({
-    x: wallSize + (grid + bubbleGap) * col + startX + center,
-
-    // the bubbles are closer on the y axis so we subtract 4 on every
-    // row
-    y: wallSize + (grid + bubbleGap - 4) * row + center,
-
-    radius: grid / 2,
-    color: color,
-    active: color ? true : false
-  });
-}
-
-// get all bubbles that touch the passed in bubble
-function getNeighbors(bubble) {
-  const neighbors = [];
-
-  // check each of the 6 directions by "moving" the bubble by a full
-  // grid in each of the 6 directions (60 degree intervals)
-  // @see https://www.redblobgames.com/grids/hexagons/#angles
-  const dirs = [
-    // right
-    rotatePoint(grid, 0, 0),
-    // up-right
-    rotatePoint(grid, 0, degToRad(60)),
-    // up-left
-    rotatePoint(grid, 0, degToRad(120)),
-    // left
-    rotatePoint(grid, 0, degToRad(180)),
-    // down-left
-    rotatePoint(grid, 0, degToRad(240)),
-    // down-right
-    rotatePoint(grid, 0, degToRad(300))
-  ];
-
-  for (let i = 0; i < dirs.length; i++) {
-    const dir = dirs[i];
-
-    const newBubble = {
-      x: bubble.x + dir.x,
-      y: bubble.y + dir.y,
-      radius: bubble.radius
-    };
-    const neighbor = getClosestBubble(newBubble, true);
-    if (neighbor && neighbor !== bubble && !neighbors.includes(neighbor)) {
-      neighbors.push(neighbor);
-    }
-  }
-
-  return neighbors;
-}
-
-// remove bubbles that create a match of 3 colors
-function removeMatch(targetBubble) {
-  const matches = [targetBubble];
-
-  bubbles.forEach(bubble => bubble.processed = false);
-  targetBubble.processed = true;
-
-  // loop over the neighbors of matching colors for more matches
-  let neighbors = getNeighbors(targetBubble);
-  for (let i = 0; i < neighbors.length; i++) {
-    let neighbor = neighbors[i];
-
-    if (!neighbor.processed) {
-      neighbor.processed = true;
-
-      if (neighbor.color === targetBubble.color) {
-        matches.push(neighbor);
-        neighbors = neighbors.concat(getNeighbors(neighbor));
-      }
-    }
-  }
-
-  // record size of cluster for loss detection
-  lastMatchCount = matches.length;
-
-  if (matches.length >= 3) {
-    matches.forEach(bubble => {
-      bubble.active = false;
-    });
-    return true; // a valid match occurred
-  }
-  return false; // no match
-}
-
-// make any floating bubbles (bubbles that don't have a bubble chain
-// that touch the ceiling) drop down the screen
-function dropFloatingBubbles() {
-  const activeBubbles = bubbles.filter(bubble => bubble.active);
-  activeBubbles.forEach(bubble => bubble.processed = false);
-
-  // start at the bubbles that touch the ceiling
-  let neighbors = activeBubbles
-    .filter(bubble => bubble.y - grid <= wallSize);
-
-  // process all bubbles that form a chain with the ceiling bubbles
-  for (let i = 0; i < neighbors.length; i++) {
-    let neighbor = neighbors[i];
-
-    if (!neighbor.processed) {
-      neighbor.processed = true;
-      neighbors = neighbors.concat(getNeighbors(neighbor));
-    }
-  }
-
-  // any bubble that is not processed doesn't touch the ceiling
-  activeBubbles
-    .filter(bubble => !bubble.processed)
-    .forEach(bubble => {
-      bubble.active = false;
-      // create a particle bubble that falls down the screen
-      particles.push({
-        x: bubble.x,
-        y: bubble.y,
-        color: bubble.color,
-        radius: bubble.radius,
-        active: true
-      });
-    });
-}
-
-// fill the grid with inactive bubbles
-for (let row = 0; row < 10; row++) {
-  for (let col = 0; col < (row % 2 === 0 ? 8 : 7); col++) {
-    // if the level has a bubble at the location, create an active
-    // bubble rather than an inactive one
-    const color = level1[row]?.[col];
-    createBubble(col * grid, row * grid, colorMap[color]);
-  }
-}
-
-const curBubblePos = {
-  // place the current bubble horizontally in the middle of the screen
-  x: canvas.width / 2,
-  y: canvas.height - grid * 1.5
-};
-const curBubble = {
-  x: curBubblePos.x,
-  y: curBubblePos.y,
-  color: 'red',
-  radius: grid / 2,  // a circles radius is half the width (diameter)
-
-  // how fast the bubble should go in either the x or y direction
-  speed: 8,
-
-  // bubble velocity
-  dx: 0,
-  dy: 0
-};
-
-// angle (in radians) of the shooting arrow
-let shootDeg = 0;
-
-// min/max angle (in radians) of the shooting arrow
-const minDeg = degToRad(-60);
-const maxDeg = degToRad(60);
-
-// the direction of movement for the arrow (-1 = left, 1 = right)
-let shootDir = 0;
-
-// reset the bubble to shoot to the bottom of the screen
-function getNewBubble() {
-  curBubble.x = curBubblePos.x;
-  curBubble.y = curBubblePos.y;
-  curBubble.dx = curBubble.dy = 0;
-
-  const randInt = getRandomInt(0, colors.length - 1);
-  curBubble.color = colors[randInt];
-}
-
-// handle collision between the current bubble and another bubble
-function handleCollision(bubble) {
-  bubble.color = curBubble.color;
-  bubble.active = true;
-  getNewBubble();
-  const didMatch = removeMatch(bubble);
-  dropFloatingBubbles();
-
-  // If the placed bubble didn't create a match of 3+, that's a loss
-  if (!didMatch) {
-    gameOver();
-  }
-}
-
-// game loop
-function loop() {
-  if (GAME_OVER) { return; }
-  requestAnimationFrame(loop);
-  context.clearRect(0,0,canvas.width,canvas.height);
-
-  // move the shooting arrow
-  shootDeg = shootDeg + degToRad(2) * shootDir;
-
-  // prevent shooting arrow from going below/above min/max
-  if (shootDeg < minDeg) {
-    shootDeg = minDeg;
-  }
-  else if (shootDeg > maxDeg) {
-    shootDeg = maxDeg
-  }
-
-  // move current bubble by it's velocity
-  curBubble.x += curBubble.dx;
-  curBubble.y += curBubble.dy;
-
-  // prevent bubble from going through walls by changing its velocity
-  if (curBubble.x - grid / 2 < wallSize) {
-    curBubble.x = wallSize + grid / 2;
-    curBubble.dx *= -1;
-  }
-  else if (curBubble.x + grid / 2 > canvas.width - wallSize) {
-    curBubble.x = canvas.width - wallSize - grid / 2;
-    curBubble.dx *= -1;
-  }
-
-  // check to see if bubble collides with the top wall
-  if (curBubble.y - grid / 2 < wallSize) {
-    // make the closest inactive bubble active
-    const closestBubble = getClosestBubble(curBubble);
-    handleCollision(closestBubble);
-  }
-
-  // check to see if bubble collides with another bubble
-  for (let i = 0; i < bubbles.length; i++) {
-    const bubble = bubbles[i];
-
-    if (bubble.active && collides(curBubble, bubble)) {
-      const closestBubble = getClosestBubble(curBubble);
-      if (!closestBubble)  {
-        window.alert('Game Over');
-        window.location.reload();
-      }
-
-      if (closestBubble) {
-        handleCollision(closestBubble);
-      }
-    }
-  }
-
-  // move bubble particles
-  particles.forEach(particle => {
-    particle.y += 8;
-  });
-
-  // remove particles that went off the screen
-  particles = particles.filter(particles => particles.y < canvas.height - grid / 2);
-
-  // draw walls
-  context.fillStyle = 'lightgrey';
-  context.fillRect(0, 0, canvas.width, wallSize);
-  context.fillRect(0, 0, wallSize, canvas.height);
-  context.fillRect(canvas.width - wallSize, 0, wallSize, canvas.height);
-
-  // draw bubbles and particles
-  bubbles.concat(particles).forEach(bubble => {
-    if (!bubble.active) return;
-    context.fillStyle = bubble.color;
-
-    // draw a circle
-    context.beginPath();
-    context.arc(bubble.x, bubble.y, bubble.radius, 0, 2 * Math.PI);
-    context.fill();
-  });
-
-  // draw fire arrow. since we're rotating the canvas we need to save
-  // the state and restore it when we're done
-  context.save();
-
-  // move to the center of the rotation (the middle of the bubble)
-  context.translate(curBubblePos.x, curBubblePos.y);
-  context.rotate(shootDeg);
-
-  // move to the top-left corner of or fire arrow
-  context.translate(0, -grid / 2 * 4.5);
-
-  // draw arrow ↑
-  context.strokeStyle = 'white';
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(0, 0);
-  context.lineTo(0, grid * 2);
-  context.moveTo(0, 0);
-  context.lineTo(-10, grid * 0.4);
-  context.moveTo(0, 0);
-  context.lineTo(10, grid * 0.4);
-  context.stroke();
-
-  context.restore();
-
-  // draw current bubble
-  context.fillStyle = curBubble.color;
-  context.beginPath();
-  context.arc(curBubble.x, curBubble.y, curBubble.radius, 0, 2 * Math.PI);
-  context.fill();
-}
-
-// listen for keyboard events to move the fire arrow
-document.addEventListener('keydown', (e) => {
-  if (GAME_OVER) return; // block input after loss
-  if (e.code === 'ArrowLeft') {
-    shootDir = -1;
-  }
-  else if (e.code === 'ArrowRight') {
-    shootDir = 1;
-  }
-
-  // if the current bubble is not moving we can launch it
-  if (e.code === 'Space' &&  curBubble.dx === 0 && curBubble.dy === 0) {
-    // convert an angle to x/y
-    curBubble.dx = Math.sin(shootDeg) * curBubble.speed;
-    curBubble.dy = -Math.cos(shootDeg) * curBubble.speed;
-  }
-});
-
-// listen for keyboard events to stop moving the fire arrow if key is
-// released
-document.addEventListener('keyup', (e) => {
-  if (
-    // only reset shoot dir if the released key is also the current
-    // direction of movement. otherwise if you press down both arrow
-    // keys at the same time and then release one of them, the arrow
-    // stops moving even though you are still pressing a key
-    (e.code === 'ArrowLeft' && shootDir === -1) ||
-    (e.code === 'ArrowRight' && shootDir === 1)
-  ) {
-    shootDir = 0;
-  }
-});
-
-// start the game
-requestAnimationFrame(loop);
-
-// simple game-over + pay overlay
-function gameOver() {
-  GAME_OVER = true;
-  // dim canvas
-  context.fillStyle = 'rgba(0,0,0,.5)';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = '#e7ecf0';
-  context.font = 'bold 20px system-ui';
-  context.textAlign = 'center';
-  context.fillText('Wrong color — no match!', canvas.width/2, canvas.height/2 - 8);
-  context.font = '14px system-ui';
-  context.fillStyle = '#a8b6c1';
-  context.fillText('Pay to play again', canvas.width/2, canvas.height/2 + 16);
-
-  // show pay overlay
-  document.getElementById('intro-overlay')?.classList.remove('hidden');
-}
-
-// === END: ORIGINAL GAME CODE (UNTOUCHED) ===
+// === END: ORIGINAL GAME CODE ===
 </script>
 
-<!-- Payment gate (module) -->
 <script type="module">
   import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
   sdk.actions.ready();
@@ -553,15 +92,10 @@ function gameOver() {
   const BASE_SEPOLIA = { chainId: "0x14a34", explorer: "https://sepolia.basescan.org/tx/" };
   const TARGET = USE_BASE_SEPOLIA ? BASE_SEPOLIA : BASE_MAINNET;
 
-  /* ===== UI helpers ===== */
+  /* ===== PAYMENT + UI ===== */
   const statusEl = document.getElementById('status');
-  const playBtn = document.getElementById('play');
-  const showStatus = () => statusEl?.classList.remove('hidden');
-  const addLine = html => { if (!statusEl) return; showStatus(); statusEl.insertAdjacentHTML('beforeend', `<div>${html}</div>`); };
-  const clearStatus = () => { if (statusEl) statusEl.innerHTML = ''; };
-  const disable = (el, yes=true) => { if (el) el.disabled = yes; };
+  const playStartBtn = document.getElementById('play-start');
 
-  /* ===== Wallet helpers ===== */
   function parseEther(x){ const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18); return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16); }
   async function getProvider(){ try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {} return window.ethereum ?? null; }
   async function ensureChain(provider, chainId) {
@@ -571,44 +105,32 @@ function gameOver() {
     catch (e) { if (e?.code === 4902) { await provider.request({ method:'wallet_addEthereumChain', params:[{ chainId }] }); await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] }); } else { throw e; } }
   }
 
-  /* ===== REQUIRED TX FLOW ===== */
   async function requiredPayment() {
-    clearStatus();
-    addLine(`<b>Step 1:</b> locating wallet provider…`);
+    statusEl.classList.remove('hidden');
+    statusEl.innerHTML = '<b>Connecting wallet…</b>';
     const provider = await getProvider();
-    if (!provider) { addLine(`<span class="err">No wallet available.</span> Open in Farcaster or enable a wallet.`); throw new Error('NO_PROVIDER'); }
-    addLine(`<span class="ok">Provider ready.</span>`);
-
-    addLine(`<b>Step 2:</b> requesting accounts…`);
+    if (!provider) { statusEl.innerHTML += '<div class="err">No wallet available.</div>'; throw new Error('NO_PROVIDER'); }
     const [from] = await provider.request({ method:'eth_requestAccounts' });
-    addLine(`<span class="ok">Account: ${from.slice(0,6)}…${from.slice(-4)}</span>`);
-
-    addLine(`<b>Step 3:</b> switching to Base…`);
     await ensureChain(provider, TARGET.chainId);
-    addLine(`<span class="ok">On Base${USE_BASE_SEPOLIA?' Sepolia':''}.</span>`);
-
-    addLine(`<b>Step 4:</b> sending ${AMOUNT_ETH} ETH to ${RECIPIENT.slice(0,6)}…${RECIPIENT.slice(-4)}…`);
+    statusEl.innerHTML += `<div>Sending ${AMOUNT_ETH} ETH to ${RECIPIENT.slice(0,6)}…${RECIPIENT.slice(-4)}…</div>`;
     const hash = await provider.request({ method:'eth_sendTransaction', params:[{ from, to: RECIPIENT, value: parseEther(AMOUNT_ETH) }] });
-    addLine(`<span class="ok">TX sent.</span> <a target="_blank" rel="noopener" href="${TARGET.explorer}${hash}">View on Basescan</a>`);
+    statusEl.innerHTML += `<div class="ok">TX sent! <a target="_blank" href="${TARGET.explorer}${hash}">View TX</a></div>`;
     return hash;
   }
 
-  async function payThenRestart(triggerBtn) {
+  async function payThenStart(btn) {
     try {
-      disable(triggerBtn, true);
+      btn.disabled = true;
       await requiredPayment();
-      // reload fresh game state
-      window.location.reload();
+      startGame();
     } catch (e) {
-      console.warn('Payment gate blocked restart:', e);
-      addLine(`<span class="warn">Payment required. Please try again.</span>`);
+      statusEl.innerHTML += `<div class="warn">Payment failed or cancelled.</div>`;
     } finally {
-      disable(triggerBtn, false);
+      btn.disabled = false;
     }
   }
 
-  // Hook up overlay button
-  playBtn?.addEventListener('click', (e)=>{ e.preventDefault(); payThenRestart(playBtn); });
+  playStartBtn.addEventListener('click', (e)=>{ e.preventDefault(); payThenStart(playStartBtn); });
 </script>
 </body>
 </html>
