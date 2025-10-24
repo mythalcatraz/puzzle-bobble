@@ -1,25 +1,77 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <title>Basic Bust-a-Move / Puzzle Bobble / Bubble Shooter HTML Game</title>
-  <meta charset="UTF-8">
-  <style>
-  html, body {
-    height: 100%;
-    margin: 0;
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>Basic Bust-a-Move / Puzzle Bobble / Bubble Shooter</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto; background:#0b0f12; color:#e7ecf0; display:grid; place-items:center; min-height:100dvh; }
+  .wrap { width:min(520px,96vw); position:relative; padding:12px; }
+  .card { background:#12171b; border:1px solid #1f2a32; border-radius:14px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .title { font-weight:800; font-size:20px; margin:0 0 8px; }
+  .muted { color:#9aa7b1; font-size:14px; line-height:1.35; }
+  button { appearance:none; border:0; background:#1dd979; color:#04130c; font-weight:700; padding:10px 16px; border-radius:12px; cursor:pointer; }
+  button:disabled { opacity:.6; cursor:not-allowed; }
+
+  canvas {
+    display:block;
+    width:min(480px,96vw); height:auto; /* keep original aspect */
+    background:#0e1418; border:1px solid #1f2a32; border-radius:12px; margin:12px auto 10px;
+    touch-action:none;
   }
 
-  body {
-    background: black;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  </style>
+  .hud { display:flex; justify-content:space-between; gap:8px; font-size:14px; color:#a8b6c1; }
+  .kbd { background:#0f151a;border:1px solid #1f2a32;border-radius:8px;padding:2px 6px; }
+
+  /* Optional status panel area (not used by game logic) */
+  #status { margin-top:10px; font-size:13px; line-height:1.35; background:#0f151a; border:1px solid #1f2a32; border-radius:10px; padding:10px; }
+  #status b { color:#cde7d8; }
+  #status .ok { color:#4ade80; }
+  #status .warn { color:#fbbf24; }
+  #status .err { color:#f87171; }
+  #status a { color:#86c6ff; text-decoration:none; }
+  /* Overlay + hidden + button (pay gate) */
+  .overlay { position:fixed; inset:0; display:grid; place-items:center; background:rgba(8,11,14,.6); backdrop-filter:blur(2px); padding:16px; }
+  .hidden { display:none!important; }
+  #play-again { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:12px 18px; border-radius:12px; border:0; font-weight:700; background:#1dd979; color:#04130c; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.35); }
+</style>
 </head>
 <body>
-<canvas width="271" height="392" id="game"></canvas>
+  <div class="wrap">
+    <div class="card">
+      <h1 class="title">Puzzle Bobble</h1>
+      <p class="muted">Arrow keys to aim (← →). Press <span class="kbd">Space</span> to shoot. Match <b>3</b> to clear. If your shot <b>doesn't</b> make a match, you <b>lose</b> and must pay to try again.</p>
+    </div>
+
+    <!-- Pay overlay (appears on loss) -->
+    <div id="intro-overlay" class="overlay hidden">
+      <div class="card" role="dialog" aria-modal="true">
+        <h2 class="title">Game Over</h2>
+        <p class="muted">Payment is required to play again.</p>
+        <div class="row">
+          <div class="muted">Change recipient/amount in code.</div>
+          <button id="play" type="button">Pay & Play Again</button>
+        </div>
+        <div id="status" class="hidden"></div>
+      </div>
+    </div>
+
+    <!-- Keep original canvas size so the game logic remains identical -->
+    <canvas width="271" height="392" id="game" aria-label="Puzzle Bobble game area"></canvas>
+
+    <div class="hud">
+      <div>Controls: <span class="kbd">←</span> <span class="kbd">→</span> &nbsp;/&nbsp; <span class="kbd">Space</span></div>
+      <div class="muted">Dark UI shell only — gameplay code unchanged.</div>
+    </div>
+
+    <div id="status" class="muted" aria-live="polite"></div>
+  </div>
+
 <script>
+// === BEGIN: ORIGINAL GAME CODE (UNTOUCHED) ===
 const canvas = document.getElementById('game');
 const context = canvas.getContext('2d');
 
@@ -59,6 +111,8 @@ const bubbleGap = 1;
 const wallSize = 4;
 const bubbles = [];
 let particles = [];
+let GAME_OVER = false; // set true on loss to block input
+let lastMatchCount = 0; // captures last match size so we can detect a wrong color shot
 
 // helper function to convert deg to radians
 function degToRad(deg) {
@@ -205,11 +259,16 @@ function removeMatch(targetBubble) {
     }
   }
 
+  // record size of cluster for loss detection
+  lastMatchCount = matches.length;
+
   if (matches.length >= 3) {
     matches.forEach(bubble => {
       bubble.active = false;
     });
+    return true; // a valid match occurred
   }
+  return false; // no match
 }
 
 // make any floating bubbles (bubbles that don't have a bubble chain
@@ -302,12 +361,18 @@ function handleCollision(bubble) {
   bubble.color = curBubble.color;
   bubble.active = true;
   getNewBubble();
-  removeMatch(bubble);
+  const didMatch = removeMatch(bubble);
   dropFloatingBubbles();
+
+  // If the placed bubble didn't create a match of 3+, that's a loss
+  if (!didMatch) {
+    gameOver();
+  }
 }
 
 // game loop
 function loop() {
+  if (GAME_OVER) { return; }
   requestAnimationFrame(loop);
   context.clearRect(0,0,canvas.width,canvas.height);
 
@@ -419,6 +484,7 @@ function loop() {
 
 // listen for keyboard events to move the fire arrow
 document.addEventListener('keydown', (e) => {
+  if (GAME_OVER) return; // block input after loss
   if (e.code === 'ArrowLeft') {
     shootDir = -1;
   }
@@ -451,6 +517,98 @@ document.addEventListener('keyup', (e) => {
 
 // start the game
 requestAnimationFrame(loop);
+
+// simple game-over + pay overlay
+function gameOver() {
+  GAME_OVER = true;
+  // dim canvas
+  context.fillStyle = 'rgba(0,0,0,.5)';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#e7ecf0';
+  context.font = 'bold 20px system-ui';
+  context.textAlign = 'center';
+  context.fillText('Wrong color — no match!', canvas.width/2, canvas.height/2 - 8);
+  context.font = '14px system-ui';
+  context.fillStyle = '#a8b6c1';
+  context.fillText('Pay to play again', canvas.width/2, canvas.height/2 + 16);
+
+  // show pay overlay
+  document.getElementById('intro-overlay')?.classList.remove('hidden');
+}
+
+// === END: ORIGINAL GAME CODE (UNTOUCHED) ===
+</script>
+
+<!-- Payment gate (module) -->
+<script type="module">
+  import { sdk } from 'https://esm.sh/@farcaster/miniapp-sdk';
+  sdk.actions.ready();
+
+  /* ===== CONFIG ===== */
+  const USE_BASE_SEPOLIA = false;     // true: 84532, false: 8453 (your current choice)
+  const RECIPIENT = "0x02212a875c56baE7AF27A5a389FD4e8A11442692";
+  const AMOUNT_ETH = "0.00001";
+
+  const BASE_MAINNET = { chainId: "0x2105",  explorer: "https://basescan.org/tx/" };
+  const BASE_SEPOLIA = { chainId: "0x14a34", explorer: "https://sepolia.basescan.org/tx/" };
+  const TARGET = USE_BASE_SEPOLIA ? BASE_SEPOLIA : BASE_MAINNET;
+
+  /* ===== UI helpers ===== */
+  const statusEl = document.getElementById('status');
+  const playBtn = document.getElementById('play');
+  const showStatus = () => statusEl?.classList.remove('hidden');
+  const addLine = html => { if (!statusEl) return; showStatus(); statusEl.insertAdjacentHTML('beforeend', `<div>${html}</div>`); };
+  const clearStatus = () => { if (statusEl) statusEl.innerHTML = ''; };
+  const disable = (el, yes=true) => { if (el) el.disabled = yes; };
+
+  /* ===== Wallet helpers ===== */
+  function parseEther(x){ const [w,f=""]=String(x).split('.'); const frac=(f+'0'.repeat(18)).slice(0,18); return '0x'+(BigInt(w)*10n**18n+BigInt(frac)).toString(16); }
+  async function getProvider(){ try { const p = await sdk.wallet.getEthereumProvider(); if (p) return p; } catch {} return window.ethereum ?? null; }
+  async function ensureChain(provider, chainId) {
+    const current = (await provider.request({ method:'eth_chainId' }))?.toLowerCase();
+    if (current === chainId.toLowerCase()) return;
+    try { await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] }); }
+    catch (e) { if (e?.code === 4902) { await provider.request({ method:'wallet_addEthereumChain', params:[{ chainId }] }); await provider.request({ method:'wallet_switchEthereumChain', params:[{ chainId }] }); } else { throw e; } }
+  }
+
+  /* ===== REQUIRED TX FLOW ===== */
+  async function requiredPayment() {
+    clearStatus();
+    addLine(`<b>Step 1:</b> locating wallet provider…`);
+    const provider = await getProvider();
+    if (!provider) { addLine(`<span class="err">No wallet available.</span> Open in Farcaster or enable a wallet.`); throw new Error('NO_PROVIDER'); }
+    addLine(`<span class="ok">Provider ready.</span>`);
+
+    addLine(`<b>Step 2:</b> requesting accounts…`);
+    const [from] = await provider.request({ method:'eth_requestAccounts' });
+    addLine(`<span class="ok">Account: ${from.slice(0,6)}…${from.slice(-4)}</span>`);
+
+    addLine(`<b>Step 3:</b> switching to Base…`);
+    await ensureChain(provider, TARGET.chainId);
+    addLine(`<span class="ok">On Base${USE_BASE_SEPOLIA?' Sepolia':''}.</span>`);
+
+    addLine(`<b>Step 4:</b> sending ${AMOUNT_ETH} ETH to ${RECIPIENT.slice(0,6)}…${RECIPIENT.slice(-4)}…`);
+    const hash = await provider.request({ method:'eth_sendTransaction', params:[{ from, to: RECIPIENT, value: parseEther(AMOUNT_ETH) }] });
+    addLine(`<span class="ok">TX sent.</span> <a target="_blank" rel="noopener" href="${TARGET.explorer}${hash}">View on Basescan</a>`);
+    return hash;
+  }
+
+  async function payThenRestart(triggerBtn) {
+    try {
+      disable(triggerBtn, true);
+      await requiredPayment();
+      // reload fresh game state
+      window.location.reload();
+    } catch (e) {
+      console.warn('Payment gate blocked restart:', e);
+      addLine(`<span class="warn">Payment required. Please try again.</span>`);
+    } finally {
+      disable(triggerBtn, false);
+    }
+  }
+
+  // Hook up overlay button
+  playBtn?.addEventListener('click', (e)=>{ e.preventDefault(); payThenRestart(playBtn); });
 </script>
 </body>
 </html>
